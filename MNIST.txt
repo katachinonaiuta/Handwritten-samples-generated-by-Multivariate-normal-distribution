@@ -1,0 +1,70 @@
+---
+title: "多元正态分布生成MNIST样本"
+author: "kanata"
+date: "2023/7/25"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 文件来源以及基本理论
+
+使用的R版本：4.1.0
+使用"mnist_tain.csv"文件，把28*28的图片看成一个784维的多元正态分布向量，用多元正态分布理论得到其最大似然估计。
+
+```{r}
+rm(list=ls())
+#function
+library(MASS)
+library(raster)
+library(readr)
+library(dplyr)
+MLE <- function(data)
+{
+  dim = dim(data)
+  myu_estimate = colMeans(data)
+  dim_col = dim[2]
+  dim_row = dim[1]
+  dim_estimate = dim_col + 1
+  for (i in 1:dim_col)
+  {
+    data[,i] = data[,i] - myu_estimate[i]
+  }
+  sigma_estimate = (t(data) %*% data)/dim_row
+  #return(myu_estimate)
+  estimate = matrix(NA,ncol = dim_col,nrow = dim_estimate)
+  estimate[1:dim_col,] = sigma_estimate
+  estimate[dim_estimate,] = myu_estimate
+  return(estimate)
+}
+data = read_csv("mnist_train.csv")
+data %>%
+  count(label)#count labels
+```
+
+## Sample Plots
+
+选择数字为8的，用mvrnorm()生成样本，然后打印出来
+
+```{r}
+data8 = subset(data,data$label==8)#select labels=8
+data8 = subset(data8,select=-c(label))#delete label col,keep others
+data8_matrix = as.matrix(data8)
+paraments = MLE(data8_matrix)
+myu = paraments[785,]
+sigma = paraments[1:784,]
+par(mfrow=c(3,3))
+sample = mvrnorm(9,myu,sigma)
+for (i in 1:9)
+{
+  sample_a = clamp(sample[i,] , lower = 0 , useValues = 0)# values lower than 0 ----> 0
+  sample_a = round(sample_a)
+  #将图片摆放到正位置
+  sample_a = rev(sample_a)
+  sample_a = matrix(sample_a , nrow = 28)
+  sample_a = apply(sample_a , 2 , rev)
+  image(sample_a,col = grey.colors(255))
+}
+```
